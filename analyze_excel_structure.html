@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>엑셀 구조 상세 분석</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .debug-section { margin: 20px 0; padding: 10px; border: 1px solid #ccc; }
+        pre { background: #f5f5f5; padding: 10px; overflow-x: auto; max-height: 400px; }
+        .highlight { background: yellow; }
+    </style>
+</head>
+<body>
+    <h1>ip_cpc.xlsx 파일 구조 상세 분석</h1>
+    
+    <input type="file" id="fileInput" accept=".xlsx,.xls" />
+    <div id="debugOutput"></div>
+
+    <script>
+        document.getElementById('fileInput').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    
+                    const debugOutput = document.getElementById('debugOutput');
+                    debugOutput.innerHTML = '';
+
+                    // 모든 시트 정보
+                    debugOutput.innerHTML += '<div class="debug-section"><h3>시트 목록</h3><pre>' + 
+                        JSON.stringify(workbook.SheetNames, null, 2) + '</pre></div>';
+
+                    // 첫 번째 시트의 데이터
+                    const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                    const jsonData = XLSX.utils.sheet_to_json(firstSheet, { header: 1, defval: "" });
+                    
+                    debugOutput.innerHTML += '<div class="debug-section"><h3>전체 데이터 (처음 100행)</h3><pre>' + 
+                        JSON.stringify(jsonData.slice(0, 100), null, 2) + '</pre></div>';
+
+                    // CPC 책정금액 관련 행 찾기
+                    let cpcRows = [];
+                    for (let i = 0; i < jsonData.length; i++) {
+                        const row = jsonData[i];
+                        if (row[0] && row[0].toString().includes('CPC')) {
+                            cpcRows.push({ index: i, data: row });
+                        }
+                    }
+
+                    debugOutput.innerHTML += '<div class="debug-section"><h3>CPC 관련 행들</h3><pre>' + 
+                        JSON.stringify(cpcRows, null, 2) + '</pre></div>';
+
+                    // 평일/주말 관련 행 찾기
+                    let budgetRows = [];
+                    for (let i = 0; i < jsonData.length; i++) {
+                        const row = jsonData[i];
+                        if (row[0] && (row[0].toString().includes('평일') || row[0].toString().includes('주말'))) {
+                            budgetRows.push({ index: i, data: row });
+                        }
+                    }
+
+                    debugOutput.innerHTML += '<div class="debug-section"><h3>평일/주말 관련 행들</h3><pre>' + 
+                        JSON.stringify(budgetRows, null, 2) + '</pre></div>';
+
+                    // 주차별 데이터 찾기
+                    let weeklyRows = [];
+                    for (let i = 0; i < jsonData.length; i++) {
+                        const row = jsonData[i];
+                        if (row[0] && row[0].toString().match(/^\d+주차$/)) {
+                            weeklyRows.push({ index: i, data: row });
+                            // 다음 행도 확인 (평균 행일 수 있음)
+                            if (i + 1 < jsonData.length) {
+                                const nextRow = jsonData[i + 1];
+                                if (nextRow[0] && nextRow[0].toString().includes('평균')) {
+                                    weeklyRows.push({ index: i + 1, data: nextRow, type: '평균' });
+                                }
+                            }
+                        }
+                    }
+
+                    debugOutput.innerHTML += '<div class="debug-section"><h3>주차별 데이터</h3><pre>' + 
+                        JSON.stringify(weeklyRows, null, 2) + '</pre></div>';
+
+                    // 월 통계 찾기
+                    let monthlyRows = [];
+                    for (let i = 0; i < jsonData.length; i++) {
+                        const row = jsonData[i];
+                        if (row[0] && row[0].toString().includes('월 통계')) {
+                            monthlyRows.push({ index: i, data: row });
+                            // 다음 2행도 확인 (합계, 평균)
+                            if (i + 1 < jsonData.length) {
+                                monthlyRows.push({ index: i + 1, data: jsonData[i + 1], type: '합계' });
+                            }
+                            if (i + 2 < jsonData.length) {
+                                monthlyRows.push({ index: i + 2, data: jsonData[i + 2], type: '평균' });
+                            }
+                        }
+                    }
+
+                    debugOutput.innerHTML += '<div class="debug-section"><h3>월 통계 데이터</h3><pre>' + 
+                        JSON.stringify(monthlyRows, null, 2) + '</pre></div>';
+
+                    // 일자별 데이터 찾기
+                    let dailyRows = [];
+                    for (let i = 0; i < jsonData.length; i++) {
+                        const row = jsonData[i];
+                        if (row[0] && row[0].toString().match(/2025\.\d{2}\.\d{2}/)) {
+                            dailyRows.push({ index: i, data: row });
+                        }
+                    }
+
+                    debugOutput.innerHTML += '<div class="debug-section"><h3>일자별 데이터 (처음 10개)</h3><pre>' + 
+                        JSON.stringify(dailyRows.slice(0, 10), null, 2) + '</pre></div>';
+
+                } catch (error) {
+                    document.getElementById('debugOutput').innerHTML = '<div class="debug-section"><h3>오류</h3><pre>' + error.message + '</pre></div>';
+                }
+            };
+            
+            reader.readAsArrayBuffer(file);
+        });
+    </script>
+</body>
+</html> 

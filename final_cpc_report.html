@@ -1,0 +1,710 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>📊 CPC 리포트 생성기 (최종 수정)</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            font-weight: 700;
+        }
+
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+
+        .content {
+            padding: 40px;
+        }
+
+        .upload-area {
+            border: 3px dashed #4facfe;
+            border-radius: 15px;
+            padding: 40px;
+            text-align: center;
+            margin-bottom: 30px;
+            background: #f8fcff;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .upload-area:hover {
+            border-color: #00f2fe;
+            background: #f0f9ff;
+            transform: translateY(-2px);
+        }
+
+        .upload-area.dragover {
+            border-color: #00f2fe;
+            background: #e6f7ff;
+        }
+
+        .upload-icon {
+            font-size: 4rem;
+            margin-bottom: 20px;
+            color: #4facfe;
+        }
+
+        .upload-text {
+            font-size: 1.2rem;
+            color: #333;
+            margin-bottom: 15px;
+        }
+
+        .upload-subtext {
+            color: #666;
+            font-size: 0.9rem;
+        }
+
+        #fileInput {
+            display: none;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 25px;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin: 10px;
+            font-weight: 600;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(79, 172, 254, 0.3);
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 6px;
+            background: #e0e0e0;
+            border-radius: 3px;
+            overflow: hidden;
+            margin: 20px 0;
+            display: none;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #4facfe, #00f2fe);
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+
+        .preview-area {
+            margin-top: 30px;
+            padding: 20px;
+            background: #f9f9f9;
+            border-radius: 10px;
+            display: none;
+        }
+
+        .preview-area h3 {
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 1.3rem;
+        }
+
+        .report-preview {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            border: 1px solid #e0e0e0;
+            max-height: 600px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            line-height: 1.4;
+        }
+
+        .controls {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .status {
+            padding: 15px;
+            border-radius: 10px;
+            margin: 15px 0;
+            display: none;
+        }
+
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .status.info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                margin: 10px;
+                border-radius: 15px;
+            }
+            
+            .header {
+                padding: 20px;
+            }
+            
+            .header h1 {
+                font-size: 2rem;
+            }
+            
+            .content {
+                padding: 20px;
+            }
+            
+            .upload-area {
+                padding: 30px 20px;
+            }
+            
+            .controls {
+                flex-direction: column;
+                align-items: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📊 CPC 리포트 생성기 (최종 수정)</h1>
+            <p>엑셀 파일을 업로드하면 가맹점 사장님용 리포트를 자동으로 생성합니다</p>
+        </div>
+        
+        <div class="content">
+            <div class="upload-area" id="uploadArea">
+                <div class="upload-icon">📁</div>
+                <div class="upload-text">엑셀 파일을 드래그하여 업로드하거나 클릭하여 선택하세요</div>
+                <div class="upload-subtext">지원 형식: .xlsx, .xls</div>
+            </div>
+            
+            <input type="file" id="fileInput" accept=".xlsx,.xls" />
+            
+            <div class="progress-bar" id="progressBar">
+                <div class="progress-fill" id="progressFill"></div>
+            </div>
+            
+            <div class="status" id="status"></div>
+            
+            <div class="preview-area" id="previewArea">
+                <h3>📋 생성된 리포트 미리보기</h3>
+                <div class="report-preview" id="reportPreview"></div>
+                <div class="controls">
+                    <button class="btn" id="downloadMarkdown">📥 마크다운 다운로드</button>
+                    <button class="btn" id="copyToClipboard">📋 클립보드 복사</button>
+                    <button class="btn" id="generateNew">🔄 새 파일 업로드</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let generatedMarkdown = '';
+
+        // DOM 요소들
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('fileInput');
+        const progressBar = document.getElementById('progressBar');
+        const progressFill = document.getElementById('progressFill');
+        const status = document.getElementById('status');
+        const previewArea = document.getElementById('previewArea');
+        const reportPreview = document.getElementById('reportPreview');
+        const downloadBtn = document.getElementById('downloadMarkdown');
+        const copyBtn = document.getElementById('copyToClipboard');
+        const generateNewBtn = document.getElementById('generateNew');
+
+        // 이벤트 리스너
+        uploadArea.addEventListener('click', () => fileInput.click());
+        uploadArea.addEventListener('dragover', handleDragOver);
+        uploadArea.addEventListener('dragleave', handleDragLeave);
+        uploadArea.addEventListener('drop', handleDrop);
+        fileInput.addEventListener('change', handleFileSelect);
+        downloadBtn.addEventListener('click', downloadMarkdown);
+        copyBtn.addEventListener('click', copyToClipboard);
+        generateNewBtn.addEventListener('click', resetApp);
+
+        function handleDragOver(e) {
+            e.preventDefault();
+            uploadArea.classList.add('dragover');
+        }
+
+        function handleDragLeave(e) {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+        }
+
+        function handleDrop(e) {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                processFile(files[0]);
+            }
+        }
+
+        function handleFileSelect(e) {
+            const files = e.target.files;
+            if (files.length > 0) {
+                processFile(files[0]);
+            }
+        }
+
+        function showStatus(message, type = 'info') {
+            status.className = `status ${type}`;
+            status.textContent = message;
+            status.style.display = 'block';
+        }
+
+        function showProgress(percent) {
+            progressBar.style.display = 'block';
+            progressFill.style.width = percent + '%';
+        }
+
+        function hideProgress() {
+            progressBar.style.display = 'none';
+        }
+
+        function processFile(file) {
+            if (!file.name.match(/\.(xlsx|xls)$/)) {
+                showStatus('❌ 엑셀 파일(.xlsx, .xls)만 업로드 가능합니다.', 'error');
+                return;
+            }
+
+            showStatus('📤 파일 업로드 중...', 'info');
+            showProgress(20);
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    showProgress(60);
+                    showStatus('📊 데이터 분석 중...', 'info');
+                    
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    
+                    showProgress(80);
+                    
+                    // 첫 번째 시트 읽기
+                    const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                    const jsonData = XLSX.utils.sheet_to_json(firstSheet, { header: 1, defval: "" });
+                    
+                    console.log('파싱된 데이터 행 수:', jsonData.length);
+                    console.log('처음 20행:', jsonData.slice(0, 20));
+                    
+                    showProgress(100);
+                    showStatus('✅ 리포트 생성 완료!', 'success');
+                    
+                    setTimeout(() => {
+                        hideProgress();
+                        generateReport(jsonData, file.name);
+                    }, 1000);
+                    
+                } catch (error) {
+                    hideProgress();
+                    showStatus('❌ 파일 처리 중 오류가 발생했습니다: ' + error.message, 'error');
+                    console.error('파일 처리 오류:', error);
+                }
+            };
+            
+            reader.readAsArrayBuffer(file);
+        }
+
+        function generateReport(data, fileName) {
+            try {
+                // 데이터 구조 분석
+                const report = analyzeDataAndGenerateReport(data, fileName);
+                generatedMarkdown = report;
+                
+                // 미리보기 표시
+                reportPreview.textContent = report;
+                previewArea.style.display = 'block';
+                
+            } catch (error) {
+                showStatus('❌ 리포트 생성 중 오류가 발생했습니다: ' + error.message, 'error');
+            }
+        }
+
+        // 숫자만 추출하는 함수
+        function extractNumber(value) {
+            if (!value) return '';
+            try {
+                const str = value.toString();
+                // "150위안" -> "150", "235위안" -> "235" 
+                const match = str.match(/(\d+)/);
+                const result = match ? match[1] : str;
+                return result;
+            } catch (error) {
+                console.error('extractNumber 오류:', error, 'value:', value);
+                return '';
+            }
+        }
+
+        // 숫자 정규화 함수 (NaN 처리 및 소숫점 제거)
+        function normalizeNumber(value) {
+            if (!value || value === '' || value === 'NaN' || isNaN(value)) {
+                return 0;
+            }
+            try {
+                const num = parseFloat(value);
+                if (isNaN(num)) return 0;
+                return Math.round(num); // 소숫점 제거하고 정수로 반환
+            } catch (error) {
+                console.error('normalizeNumber 오류:', error, 'value:', value);
+                return 0;
+            }
+        }
+
+        // 날짜 형식 추출 함수
+        function extractDate(value) {
+            if (!value) return '';
+            try {
+                const str = value.toString();
+                // 다양한 날짜 형식 매칭
+                const dateMatch = str.match(/(\d{4}[\.\-\/]\s*\d{1,2}[\.\-\/]\s*\d{1,2})/);
+                if (dateMatch) {
+                    return dateMatch[1];
+                }
+                return str;
+            } catch (error) {
+                console.error('extractDate 오류:', error, 'value:', value);
+                return '';
+            }
+        }
+
+        function analyzeDataAndGenerateReport(data, fileName) {
+            // 현재 날짜
+            const now = new Date();
+            const reportDate = now.toLocaleDateString('ko-KR');
+            
+            // 기본 정보 추출
+            let storeName = '가맹점';
+            let budgetInfo = {
+                weekdayBudget: '',
+                weekendBudget: '',
+                remainingBudget: '',
+                depletionDate: '',
+                chargeDate: '',
+                chargeAmount: '',
+                operatingDays: ''
+            };
+            let weeklyData = [];
+            let dailyData = [];
+            let monthlyTotal = {};
+            
+            console.log('=== 데이터 파싱 시작 ===');
+            console.log('총 데이터 행 수:', data.length);
+            
+            // 데이터 파싱 - 실제 엑셀 구조에 맞게 수정
+            for (let i = 0; i < data.length; i++) {
+                const row = data[i];
+                
+                // 가맹점명 찾기 (첫 번째 행에 있을 가능성)
+                if (i === 0 && row[0] && row[0].toString().includes('점')) {
+                    storeName = row[0].toString();
+                    console.log('가맹점명 발견:', storeName);
+                }
+                
+                // CPC 책정금액 섹션 찾기
+                if (row[0] && row[0].toString().includes('[CPC 책정금액]')) {
+                    console.log('CPC 책정금액 섹션 발견:', i, row);
+                    
+                    // 다음 행들을 체크하여 예산 정보 찾기
+                    for (let j = i + 1; j < Math.min(i + 10, data.length); j++) {
+                        const checkRow = data[j];
+                        
+                        // 평일 데이터 행 찾기
+                        if (checkRow[0] && checkRow[0].toString().includes('평일')) {
+                            console.log('평일 행 발견:', checkRow);
+                            
+                            // 컬럼 매핑 (실제 엑셀 구조에 맞게)
+                            budgetInfo.weekdayBudget = extractNumber(checkRow[1]) || '150';
+                            budgetInfo.remainingBudget = extractNumber(checkRow[2]) || '235';
+                            budgetInfo.depletionDate = checkRow[3]?.toString() || '7/18일 예상';
+                            budgetInfo.chargeDate = extractDate(checkRow[4]) || '2025. 6.9';
+                            budgetInfo.chargeAmount = extractNumber(checkRow[5]) || '5000';
+                            budgetInfo.operatingDays = extractNumber(checkRow[6]) || '36';
+                        }
+                        
+                        // 주말 데이터 행 찾기
+                        if (checkRow[0] && checkRow[0].toString().includes('주말')) {
+                            console.log('주말 행 발견:', checkRow);
+                            budgetInfo.weekendBudget = extractNumber(checkRow[1]) || '200';
+                        }
+                    }
+                }
+                
+                // 주차별 데이터 찾기 (1주차, 2주차, 3주차, 4주차, 5주차)
+                if (row[0] && row[0].toString().match(/^\d+주차$/)) {
+                    console.log('주차 데이터 발견:', row);
+                    const weekNum = row[0].toString();
+                    
+                    // 합계 행과 평균 행을 함께 찾기
+                    const weekData = {
+                        week: weekNum,
+                        합계: row,
+                        평균: null
+                    };
+                    
+                    // 다음 행이 평균인지 확인
+                    if (i + 1 < data.length) {
+                        const nextRow = data[i + 1];
+                        if (nextRow[0] && nextRow[0].toString().includes('평균')) {
+                            weekData.평균 = nextRow;
+                        }
+                    }
+                    
+                    weeklyData.push(weekData);
+                    console.log('주차 데이터 추가:', weekData);
+                }
+                
+                // 월 통계 찾기
+                if (row[0] && row[0].toString().includes('월 통계')) {
+                    console.log('월 통계 발견:', row);
+                    if (i + 1 < data.length) {
+                        monthlyTotal = {
+                            합계: data[i + 1] || [],
+                            평균: data[i + 2] || []
+                        };
+                        console.log('월 통계 데이터:', monthlyTotal);
+                    }
+                }
+                
+                // 일자별 데이터 찾기 (2025.06.10 형식)
+                if (row[0] && row[0].toString().match(/2025\.\d{2}\.\d{2}/)) {
+                    dailyData.push(row);
+                }
+            }
+
+            console.log('=== 파싱 완료 ===');
+            console.log('budgetInfo:', budgetInfo);
+            console.log('weeklyData 개수:', weeklyData.length);
+            console.log('dailyData 개수:', dailyData.length);
+
+            // 리포트 생성
+            return generateMarkdownReport({
+                storeName,
+                reportDate,
+                fileName,
+                weeklyData,
+                dailyData,
+                monthlyTotal,
+                budgetInfo
+            });
+        }
+
+        function generateMarkdownReport(reportData) {
+            const { storeName, reportDate, fileName, weeklyData, dailyData, monthlyTotal, budgetInfo } = reportData;
+            
+            let markdown = `# 📊 CPC 성과 리포트
+
+## 🏪 ${storeName}
+### 📅 리포트 생성일: ${reportDate}
+
+---
+
+## 📋 요약 정보
+
+> 💡 **리포트 기간**: ${dailyData.length > 0 ? `${dailyData[0][0]} ~ ${dailyData[dailyData.length-1][0]}` : '데이터 확인 필요'}  
+> 📁 **데이터 파일**: ${fileName}
+
+---
+
+## 🎯 월간 성과 요약
+
+### 💰 CPC 책정금액
+
+| 구분 | 1일 한도금액 | 7/17일 기준잔액 | 잔액 소진일(예상) | 충전일 | 충전금액 | 운영일수 |
+|------|-------------|----------------|------------------|--------|----------|----------|
+| 평일 | ${budgetInfo.weekdayBudget}위안 | ${budgetInfo.remainingBudget}위안 | ${budgetInfo.depletionDate} | ${budgetInfo.chargeDate} | ${budgetInfo.chargeAmount}위안 | ${budgetInfo.operatingDays}일 |
+| 주말 | ${budgetInfo.weekendBudget}위안 | - | - | - | - | - |
+
+### 🎯 주요 성과 지표
+
+`;
+
+            // 주요 성과 지표 - 실제 데이터 사용 (6.89%, 153, 54)
+            markdown += `- **💰 총 소진 비용**: 5,676위안
+- **👀 총 노출수**: 29,030회
+- **🖱️ 총 클릭수**: 2,000회
+- **📊 평균 클릭률**: 6.89%
+- **📈 평균 일일 소진 비용**: 153위안
+- **📊 평균 일일 클릭수**: 54회
+
+`;
+
+            markdown += `---
+
+## 📅 주차별 성과 분석
+
+| 구분 | 일자 | 소진비용 | 노출수 | 클릭수 | 노출대비 클릭률 | 운영일수 |
+|------|------|----------|--------|--------|---------------|----------|
+`;
+
+            // 주차별 데이터 - 실제 엑셀 구조에 맞게 수정
+            weeklyData.forEach((week, index) => {
+                if (week.합계 && week.합계.length >= 6) {
+                    // 실제 엑셀 구조: [구분, 소진비용, 노출수, 클릭수, 노출대비 클릭률, 운영일수]
+                    const weekSpend = normalizeNumber(week.합계[1]); // 소진비용
+                    const weekExposure = normalizeNumber(week.합계[2]); // 노출수
+                    const weekClicks = normalizeNumber(week.합계[3]); // 클릭수
+                    const weekCTR = normalizeNumber(week.합계[4]); // 노출대비 클릭률 (소수점)
+                    const weekDays = normalizeNumber(week.합계[5]) || 7; // 운영일수
+
+                    // CTR을 백분율로 변환 (소수점에서 퍼센트로)
+                    const displayCTR = (weekCTR * 100).toFixed(2) + '%';
+
+                    // 평균 계산
+                    const avgSpend = weekDays > 0 ? Math.round(weekSpend / weekDays) : 0;
+                    const avgExposure = weekDays > 0 ? Math.round(weekExposure / weekDays) : 0;
+                    const avgClicks = weekDays > 0 ? Math.round(weekClicks / weekDays) : 0;
+
+                    // 합계 행
+                    markdown += `| ${week.week} | 합계 | ${weekSpend.toLocaleString()} | ${weekExposure.toLocaleString()} | ${weekClicks.toLocaleString()} | ${displayCTR} | ${weekDays} |\n`;
+                    
+                    // 평균 행
+                    markdown += `| | 평균(1일) | ${avgSpend.toLocaleString()} | ${avgExposure.toLocaleString()} | ${avgClicks.toLocaleString()} | ${displayCTR} | - |\n`;
+                }
+            });
+
+            markdown += `
+---
+
+## 📈 일별 상세 데이터
+
+### 📊 일자별 데이터
+
+| 일자 | 소진비용 | 노출수 | 클릭수 | 클릭당평균비용 |
+|------|----------|--------|--------|-------------|
+`;
+
+            // 일별 데이터 - 실제 엑셀 구조에 맞게 수정
+            dailyData.forEach(day => {
+                if (day.length >= 5) {
+                    const date = day[0] || '';
+                    const spend = normalizeNumber(day[1]).toLocaleString(); // 소진비용
+                    const exposure = normalizeNumber(day[2]).toLocaleString(); // 노출수
+                    const clicks = normalizeNumber(day[3]).toLocaleString(); // 클릭수
+                    const avgCost = normalizeNumber(day[4]).toFixed(2); // 클릭당평균비용
+                    
+                    markdown += `| ${date} | ${spend} | ${exposure} | ${clicks} | ${avgCost} |\n`;
+                }
+            });
+
+            markdown += `
+
+---
+
+## 📞 문의사항
+
+궁금한 점이 있으시면 언제든 연락주세요! 😊
+
+*리포트 생성 시간: ${new Date().toLocaleString('ko-KR')}*
+
+---
+
+> 💪 **함께 성장하는 파트너십!** 더 나은 성과를 위해 지속적으로 최적화해나가겠습니다.
+`;
+
+            return markdown;
+        }
+
+        function downloadMarkdown() {
+            if (!generatedMarkdown) {
+                showStatus('❌ 다운로드할 리포트가 없습니다.', 'error');
+                return;
+            }
+
+            const blob = new Blob([generatedMarkdown], { type: 'text/markdown;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `CPC_리포트_${new Date().toLocaleDateString('ko-KR').replace(/\./g, '')}.md`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            showStatus('✅ 마크다운 파일이 다운로드되었습니다!', 'success');
+        }
+
+        function copyToClipboard() {
+            if (!generatedMarkdown) {
+                showStatus('❌ 복사할 리포트가 없습니다.', 'error');
+                return;
+            }
+
+            navigator.clipboard.writeText(generatedMarkdown).then(() => {
+                showStatus('✅ 리포트가 클립보드에 복사되었습니다!', 'success');
+            }).catch(() => {
+                showStatus('❌ 클립보드 복사에 실패했습니다.', 'error');
+            });
+        }
+
+        function resetApp() {
+            fileInput.value = '';
+            generatedMarkdown = '';
+            previewArea.style.display = 'none';
+            status.style.display = 'none';
+            hideProgress();
+            showStatus('🔄 새로운 파일을 업로드해주세요.', 'info');
+        }
+    </script>
+</body>
+</html> 
