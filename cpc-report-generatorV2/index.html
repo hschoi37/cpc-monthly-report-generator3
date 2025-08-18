@@ -873,14 +873,28 @@
                     (row[1] && row[1].toString().match(/^\d+주차$/))) {
                     const weekNum = (row[0] && row[0].toString().match(/^\d+주차$/)) ? row[0].toString() : row[1].toString();
                     
-                    // 헤더 행 찾기 (현재 행 위의 행들 중에서)
+                    // 헤더 행 찾기 (전체 데이터에서 가장 최근 헤더 사용)
                     let headerMapping = null;
-                    for (let h = Math.max(0, i - 3); h < i; h++) {
+                    
+                    // 현재 행 위쪽으로 더 넓게 검색 (최대 20행까지)
+                    for (let h = Math.max(0, i - 20); h < i; h++) {
                         const headerRow = data[h];
                         if (headerRow && headerRow.some(cell => cell && cell.toString().includes('노출수'))) {
                             headerMapping = findHeaderMapping(headerRow);
                             console.log(`헤더 매핑 발견 (행 ${h}):`, headerMapping);
-                            break;
+                            // 가장 가까운(최신) 헤더를 사용하므로 break 하지 않고 계속 업데이트
+                        }
+                    }
+                    
+                    // 헤더를 찾지 못한 경우 전역적으로 한 번 더 검색
+                    if (!headerMapping) {
+                        for (let h = 0; h < data.length; h++) {
+                            const headerRow = data[h];
+                            if (headerRow && headerRow.some(cell => cell && cell.toString().includes('노출수'))) {
+                                headerMapping = findHeaderMapping(headerRow);
+                                console.log(`전역 헤더 매핑 발견 (행 ${h}):`, headerMapping);
+                                break; // 첫 번째 헤더 사용
+                            }
                         }
                     }
                     
@@ -1272,9 +1286,19 @@
                         // 평균 데이터도 헤더 매핑 사용
                         avgExposure = normalizeNumber(week.평균[mapping.노출수]);
                         avgClicks = normalizeNumber(week.평균[mapping.클릭수]);
+                        console.log(`${week.week} 엑셀 평균 데이터:`, {
+                            평균원본: week.평균,
+                            추출노출수: avgExposure,
+                            추출클릭수: avgClicks
+                        });
                     } else {
+                        // 엑셀에 평균이 없으면 계산
                         avgExposure = weekDays > 0 ? Math.round(weekExposure / weekDays) : 0;
                         avgClicks = weekDays > 0 ? Math.round(weekClicks / weekDays) : 0;
+                        console.log(`${week.week} 계산된 평균:`, {
+                            노출수: avgExposure,
+                            클릭수: avgClicks
+                        });
                     }
 
                     let displayCTR = '0%';
