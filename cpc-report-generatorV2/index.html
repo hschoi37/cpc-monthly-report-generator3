@@ -894,13 +894,40 @@
                 
                 // 월 통계 찾기 (공백 제거 후 '월통계' 포함 여부로 판정)
                 if (row.some && row.some(cell => cell && cell.toString().replace(/\s/g, '').includes('월통계'))) {
+                    console.log(`월 통계 섹션 발견 (행 ${i}):`, row);
+                    
                     for (let j = i + 1; j < Math.min(i + 10, data.length); j++) {
                         const checkRow = data[j];
-                        if (!monthlyTotal.합계 && checkRow.some(cell => cell && cell.toString().includes('합계'))) {
-                            monthlyTotal.합계 = checkRow;
+                        console.log(`월 통계 체크 행 ${j}:`, checkRow);
+                        
+                        // 합계 행 찾기 - 더 정확한 패턴 매칭
+                        if (!monthlyTotal.합계) {
+                            // [empty, empty, "합계", 숫자, 숫자, 숫자, ...] 패턴
+                            if (checkRow[2] && checkRow[2].toString().includes('합계') && 
+                                checkRow[3] && !isNaN(parseFloat(checkRow[3]))) {
+                                monthlyTotal.합계 = checkRow;
+                                console.log('✅ 월 통계 합계 발견:', checkRow);
+                            }
+                            // 다른 위치에 합계가 있을 수 있음
+                            else if (checkRow.some(cell => cell && cell.toString().includes('합계'))) {
+                                monthlyTotal.합계 = checkRow;
+                                console.log('✅ 월 통계 합계 발견 (대체):', checkRow);
+                            }
                         }
-                        if (!monthlyTotal.평균 && checkRow.some(cell => cell && cell.toString().includes('평균'))) {
-                            monthlyTotal.평균 = checkRow;
+                        
+                        // 평균 행 찾기 - 더 정확한 패턴 매칭  
+                        if (!monthlyTotal.평균) {
+                            // [empty, empty, "평균(1일)", 숫자, 숫자, 숫자, ...] 패턴
+                            if (checkRow[2] && checkRow[2].toString().includes('평균') && 
+                                checkRow[3] && !isNaN(parseFloat(checkRow[3]))) {
+                                monthlyTotal.평균 = checkRow;
+                                console.log('✅ 월 통계 평균 발견:', checkRow);
+                            }
+                            // 다른 위치에 평균이 있을 수 있음
+                            else if (checkRow.some(cell => cell && cell.toString().includes('평균'))) {
+                                monthlyTotal.평균 = checkRow;
+                                console.log('✅ 월 통계 평균 발견 (대체):', checkRow);
+                            }
                         }
                     }
                 }
@@ -1072,22 +1099,65 @@
                 
                 // 월 통계 평균 데이터 추출
                 if (monthlyTotal.평균 && monthlyTotal.평균.length >= 4) {
-                    console.log('월 통계 평균 데이터:', monthlyTotal.평균);
+                    console.log('🔍 월 통계 평균 데이터 추출 시작:', monthlyTotal.평균);
                     
-                    if (monthlyTotal.평균[0] === '' && monthlyTotal.평균[1] && 
-                        monthlyTotal.평균[1].toString().includes('평균')) {
+                    // 패턴 1: [NaN, NaN, "평균(1일)", 숫자, 숫자, 숫자, ...]
+                    if (monthlyTotal.평균[2] && monthlyTotal.평균[2].toString().includes('평균') && 
+                        monthlyTotal.평균[3] && !isNaN(parseFloat(monthlyTotal.평균[3]))) {
+                        dailyAvgSpend = normalizeNumber(monthlyTotal.평균[3]);
+                        dailyAvgExposure = normalizeNumber(monthlyTotal.평균[4]);
+                        dailyAvgClicks = normalizeNumber(monthlyTotal.평균[5]);
+                        console.log('✅ 패턴 1 매치: 일평균 데이터 추출 성공', {
+                            spend: dailyAvgSpend,
+                            exposure: dailyAvgExposure,  
+                            clicks: dailyAvgClicks
+                        });
+                    }
+                    // 패턴 2: [empty, "평균(1일)", 숫자, 숫자, 숫자, ...]
+                    else if (monthlyTotal.평균[1] && monthlyTotal.평균[1].toString().includes('평균') && 
+                        monthlyTotal.평균[2] && !isNaN(parseFloat(monthlyTotal.평균[2]))) {
                         dailyAvgSpend = normalizeNumber(monthlyTotal.평균[2]);
                         dailyAvgExposure = normalizeNumber(monthlyTotal.평균[3]);
                         dailyAvgClicks = normalizeNumber(monthlyTotal.평균[4]);
-                    } else if (monthlyTotal.평균[0] && monthlyTotal.평균[0].toString().includes('평균')) {
+                        console.log('✅ 패턴 2 매치: 일평균 데이터 추출 성공', {
+                            spend: dailyAvgSpend,
+                            exposure: dailyAvgExposure,
+                            clicks: dailyAvgClicks
+                        });
+                    }
+                    // 패턴 3: ["평균(1일)", 숫자, 숫자, 숫자, ...]
+                    else if (monthlyTotal.평균[0] && monthlyTotal.평균[0].toString().includes('평균') && 
+                        monthlyTotal.평균[1] && !isNaN(parseFloat(monthlyTotal.평균[1]))) {
                         dailyAvgSpend = normalizeNumber(monthlyTotal.평균[1]);
                         dailyAvgExposure = normalizeNumber(monthlyTotal.평균[2]);
                         dailyAvgClicks = normalizeNumber(monthlyTotal.평균[3]);
-                    } else {
-                        dailyAvgSpend = normalizeNumber(monthlyTotal.평균[0]);
-                        dailyAvgExposure = normalizeNumber(monthlyTotal.평균[1]);
-                        dailyAvgClicks = normalizeNumber(monthlyTotal.평균[2]);
+                        console.log('✅ 패턴 3 매치: 일평균 데이터 추출 성공', {
+                            spend: dailyAvgSpend,
+                            exposure: dailyAvgExposure,
+                            clicks: dailyAvgClicks
+                        });
                     }
+                    // 기본 패턴 (순서대로 숫자 찾기)
+                    else {
+                        const numericValues = monthlyTotal.평균.filter(cell => 
+                            cell !== null && cell !== undefined && cell !== '' && 
+                            !isNaN(parseFloat(cell)) && parseFloat(cell) > 0
+                        );
+                        if (numericValues.length >= 3) {
+                            dailyAvgSpend = normalizeNumber(numericValues[0]);
+                            dailyAvgExposure = normalizeNumber(numericValues[1]);
+                            dailyAvgClicks = normalizeNumber(numericValues[2]);
+                            console.log('✅ 기본 패턴 매치: 일평균 데이터 추출 성공', {
+                                spend: dailyAvgSpend,
+                                exposure: dailyAvgExposure,
+                                clicks: dailyAvgClicks
+                            });
+                        } else {
+                            console.log('❌ 일평균 데이터 추출 실패: 숫자 값이 부족함');
+                        }
+                    }
+                } else {
+                    console.log('❌ 월 통계 평균 데이터가 없거나 길이가 부족함');
                 }
                 
                 if (totalSpend === 0 && totalExposure === 0 && totalClicks === 0) {
