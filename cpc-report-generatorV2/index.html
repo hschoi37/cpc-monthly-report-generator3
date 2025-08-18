@@ -1206,17 +1206,19 @@
 
             weeklyData.forEach((week, index) => {
                 if (week.합계 && week.합계.length >= 3) {
-                    const weekExposure = normalizeNumber(week.합계[3]);
-                    const weekClicks = normalizeNumber(week.합계[4]);
-                    const weekCTR = week.합계[5];
-                    const weekDays = normalizeNumber(week.합계[6]) || 7;
+                    // 엑셀 데이터 구조: [NaN, "1주차", "합계", 소진비용, 노출수, 클릭수, CTR, 운영일수]
+                    const weekExposure = normalizeNumber(week.합계[4]); // 수정: 위치 4가 노출수
+                    const weekClicks = normalizeNumber(week.합계[5]);   // 수정: 위치 5가 클릭수  
+                    const weekCTR = week.합계[6];                       // 수정: 위치 6이 CTR
+                    const weekDays = normalizeNumber(week.합계[7]) || 7; // 수정: 위치 7이 운영일수
 
                     let avgExposure = 0;
                     let avgClicks = 0;
                     
                     if (week.평균 && week.평균.length >= 3) {
-                        avgExposure = normalizeNumber(week.평균[3]);
-                        avgClicks = normalizeNumber(week.평균[4]);
+                        // 평균 데이터 구조도 동일하게 수정
+                        avgExposure = normalizeNumber(week.평균[4]); // 수정: 위치 4가 노출수 평균
+                        avgClicks = normalizeNumber(week.평균[5]);   // 수정: 위치 5가 클릭수 평균
                     } else {
                         avgExposure = weekDays > 0 ? Math.round(weekExposure / weekDays) : 0;
                         avgClicks = weekDays > 0 ? Math.round(weekClicks / weekDays) : 0;
