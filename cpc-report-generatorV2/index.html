@@ -642,6 +642,36 @@
             }
         }
 
+        // 헤더 매핑 함수 - 컬럼 위치를 동적으로 찾음
+        function findHeaderMapping(headerRow) {
+            const mapping = {
+                소진비용: -1,
+                노출수: -1,
+                클릭수: -1,
+                CTR: -1,
+                운영일수: -1
+            };
+            
+            for (let i = 0; i < headerRow.length; i++) {
+                if (!headerRow[i]) continue;
+                const header = headerRow[i].toString().toLowerCase();
+                
+                if (header.includes('소진비용') || header.includes('비용')) {
+                    mapping.소진비용 = i;
+                } else if (header.includes('노출수')) {
+                    mapping.노출수 = i;
+                } else if (header.includes('클릭수')) {
+                    mapping.클릭수 = i;
+                } else if (header.includes('클릭율') || header.includes('클릭률') || header.includes('ctr')) {
+                    mapping.CTR = i;
+                } else if (header.includes('운영일수') || header.includes('일수')) {
+                    mapping.운영일수 = i;
+                }
+            }
+            
+            return mapping;
+        }
+
         // 마크다운을 HTML로 변환하는 함수
         function convertMarkdownToHTML(markdown) {
             let html = markdown;
@@ -838,15 +868,27 @@
                     }
                 }
                 
-                // 주차별 데이터 찾기 (row[0] 또는 row[1]에서 확인)
+                // 주차별 데이터 찾기 (스마트 헤더 기반)
                 if ((row[0] && row[0].toString().match(/^\d+주차$/)) || 
                     (row[1] && row[1].toString().match(/^\d+주차$/))) {
                     const weekNum = (row[0] && row[0].toString().match(/^\d+주차$/)) ? row[0].toString() : row[1].toString();
                     
+                    // 헤더 행 찾기 (현재 행 위의 행들 중에서)
+                    let headerMapping = null;
+                    for (let h = Math.max(0, i - 3); h < i; h++) {
+                        const headerRow = data[h];
+                        if (headerRow && headerRow.some(cell => cell && cell.toString().includes('노출수'))) {
+                            headerMapping = findHeaderMapping(headerRow);
+                            console.log(`헤더 매핑 발견 (행 ${h}):`, headerMapping);
+                            break;
+                        }
+                    }
+                    
                     const weekData = {
                         week: weekNum,
                         합계: row,
-                        평균: null
+                        평균: null,
+                        headerMapping: headerMapping // 헤더 위치 정보 저장
                     };
                     
                     if (i + 1 < data.length) {
@@ -1206,19 +1248,30 @@
 
             weeklyData.forEach((week, index) => {
                 if (week.합계 && week.합계.length >= 3) {
-                    // 엑셀 데이터 구조: [NaN, "1주차", "합계", 소진비용, 노출수, 클릭수, CTR, 운영일수]
-                    const weekExposure = normalizeNumber(week.합계[4]); // 수정: 위치 4가 노출수
-                    const weekClicks = normalizeNumber(week.합계[5]);   // 수정: 위치 5가 클릭수  
-                    const weekCTR = week.합계[6];                       // 수정: 위치 6이 CTR
-                    const weekDays = normalizeNumber(week.합계[7]) || 7; // 수정: 위치 7이 운영일수
+                    // 스마트 헤더 매핑 사용 또는 기본값 사용
+                    const mapping = week.headerMapping || {노출수: 4, 클릭수: 5, CTR: 6, 운영일수: 7};
+                    
+                    const weekExposure = normalizeNumber(week.합계[mapping.노출수]);
+                    const weekClicks = normalizeNumber(week.합계[mapping.클릭수]);   
+                    const weekCTR = week.합계[mapping.CTR];                       
+                    const weekDays = normalizeNumber(week.합계[mapping.운영일수]) || 7;
+                    
+                    console.log(`${week.week} 데이터 추출:`, {
+                        매핑: mapping,
+                        원본행: week.합계,
+                        노출수: weekExposure,
+                        클릭수: weekClicks,
+                        CTR: weekCTR,
+                        운영일수: weekDays
+                    });
 
                     let avgExposure = 0;
                     let avgClicks = 0;
                     
                     if (week.평균 && week.평균.length >= 3) {
-                        // 평균 데이터 구조도 동일하게 수정
-                        avgExposure = normalizeNumber(week.평균[4]); // 수정: 위치 4가 노출수 평균
-                        avgClicks = normalizeNumber(week.평균[5]);   // 수정: 위치 5가 클릭수 평균
+                        // 평균 데이터도 헤더 매핑 사용
+                        avgExposure = normalizeNumber(week.평균[mapping.노출수]);
+                        avgClicks = normalizeNumber(week.평균[mapping.클릭수]);
                     } else {
                         avgExposure = weekDays > 0 ? Math.round(weekExposure / weekDays) : 0;
                         avgClicks = weekDays > 0 ? Math.round(weekClicks / weekDays) : 0;
