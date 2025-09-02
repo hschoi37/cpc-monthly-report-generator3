@@ -664,9 +664,17 @@
                     console.log('최종 월 통계 데이터:', monthlyTotal);
                 }
                 
-                // 일자별 데이터 찾기 (2025.06.10 형식)
+                // 일자별 데이터 찾기 (2025.06.10 형식) - 중복 방지를 위해 한 번만 수집
                 if (row[0] && row[0].toString().match(/2025\.\d{2}\.\d{2}/)) {
-                    dailyData.push(row);
+                    // 이미 수집된 날짜인지 확인하여 중복 방지
+                    const dateStr = row[0].toString();
+                    const isDuplicate = dailyData.some(existingRow => 
+                        existingRow[0] && existingRow[0].toString() === dateStr
+                    );
+                    
+                    if (!isDuplicate) {
+                        dailyData.push(row);
+                    }
                 }
             }
 
